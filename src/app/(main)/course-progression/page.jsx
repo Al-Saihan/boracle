@@ -733,7 +733,7 @@ export default function CourseProgressionPage() {
                             <div className="h-px w-8 bg-blue-100 dark:bg-blue-900/50" />
 
                             <div className="text-sm text-blue-800/80 dark:text-blue-300/80">
-                                Click Mini CourseCode Chups to jump quickly to the specific courses
+                                Click Mini CourseCode Chips to jump quickly to the specific courses
                             </div>
                         </div>
                     </details>
