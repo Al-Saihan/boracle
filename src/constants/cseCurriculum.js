@@ -278,7 +278,7 @@ export const cseCurriculum = [
     },
 ];
 
-// ! Pre-req override map
+// !MARK: Pre-req override map
 // null means "use prerequisite from Connect CDN".
 // Any non-null string overrides the CDN prerequisite for that course code.
 const allCurriculumCourseCodes = Array.from(

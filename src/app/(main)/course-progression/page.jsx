@@ -12,27 +12,37 @@ import {
     getTotalCredits as getCsTotalCredits,
     prerequisiteOverrides as csPrerequisiteOverrides,
 } from "@/constants/csCurriculum";
-import { CheckCircle2, ChevronDown, ChevronUp, Lock, Unlock, RefreshCw, Undo2 } from "lucide-react";
+import {
+    microbiologyCurriculum,
+    getTotalCredits as getMicrobioTotalCredits,
+    prerequisiteOverrides as microbioPrerequisiteOverrides,
+} from "@/constants/microbioCurriculum";
+import { CheckCircle2, ChevronDown, ChevronUp, Lock, Search, Unlock, RefreshCw, Undo2 } from "lucide-react";
 
-const departments = [
+const allDepartments = [
     { code: "CSE", name: "Computer Science & Engineering" },
     { code: "CS", name: "Computer Science" },
+    { code: "MIC", name: "Microbiology" },
     { code: "ARCH", name: "Architecture" },
     { code: "BBA", name: "Business Administration" },
     { code: "LAW", name: "Law" },
 ];
 
+const departments = allDepartments.filter((department) => !["ARCH", "BBA", "LAW"].includes(department.code));
+
 const departmentCurricula = {
     CSE: cseCurriculum,
     CS: csCurriculum,
+    MIC: microbiologyCurriculum,
 };
 
 const departmentPrerequisiteOverrides = {
     CSE: csePrerequisiteOverrides,
     CS: csPrerequisiteOverrides,
+    MIC: microbioPrerequisiteOverrides,
 };
 
-const supportedDepartments = new Set(["CSE", "CS"]);
+const supportedDepartments = new Set(["CSE", "CS", "MIC"]);
 
 function getCurriculumForDepartment(code) {
     return departmentCurricula[code] ?? [];
@@ -40,6 +50,12 @@ function getCurriculumForDepartment(code) {
 
 function getPrerequisiteOverridesForDepartment(code) {
     return departmentPrerequisiteOverrides[code] ?? csePrerequisiteOverrides;
+}
+
+function getTotalCreditsForDepartment(code, curriculum) {
+    if (code === "CS") return getCsTotalCredits(curriculum);
+    if (code === "MIC") return getMicrobioTotalCredits(curriculum);
+    return getCseTotalCredits(curriculum);
 }
 
 function getCompletedCoursesForCurriculum(curriculum, completedCourses) {
@@ -63,6 +79,50 @@ function getSectionAnchorId(sectionName) {
 
 function getCourseCardId(courseCode) {
     return `course-card-${courseCode.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function normalizeSearchText(value) {
+    return value?.toString().trim().toLowerCase() ?? "";
+}
+
+function getSearchTokens(query) {
+    return normalizeSearchText(query)
+        .split(/\s+/)
+        .filter(Boolean);
+}
+
+function findCourseMatches(courses, query) {
+    const searchTokens = getSearchTokens(query);
+
+    if (searchTokens.length === 0) return [];
+
+    return courses
+        .map((course) => {
+            const code = normalizeSearchText(course.code);
+            const name = normalizeSearchText(course.name);
+            const sectionName = normalizeSearchText(course.sectionName);
+            const streamName = normalizeSearchText(course.streamName);
+            const alternatives = Array.isArray(course.alternatives) ? course.alternatives : [];
+
+            const courseText = [code, name, sectionName, streamName].filter(Boolean).join(" ");
+
+            const matchedAlternatives = alternatives.filter((alternative) => {
+                const normalizedAlternative = normalizeSearchText(alternative);
+                return searchTokens.some((token) => normalizedAlternative.includes(token));
+            });
+
+            const matchesQuery =
+                searchTokens.some((token) => courseText.includes(token)) || matchedAlternatives.length > 0;
+
+            if (!matchesQuery) return null;
+
+            return {
+                course,
+                matchedAlternatives,
+                locationLabel: course.streamName ? `${course.sectionName} · ${course.streamName}` : course.sectionName,
+            };
+        })
+        .filter(Boolean);
 }
 
 //! MARK: Helpers
@@ -244,8 +304,20 @@ function useConnectCDN(prereqOverrides = csePrerequisiteOverrides) {
 }
 
 //! MARK: Course Card
-function CourseCard({ course, isCompleted, isAvailable, isSelected, isHighlighted, onClick, onPrereqClick, courseDetails }) {
+function CourseCard({
+    course,
+    isCompleted,
+    isAvailable,
+    isSelected,
+    isHighlighted,
+    onClick,
+    onPrereqClick,
+    courseDetails,
+    searchQuery,
+}) {
     const [showTooltip, setShowTooltip] = useState(false);
+    const normalizedSearchQuery = normalizeSearchText(searchQuery);
+    const hasAlternatives = Array.isArray(course.alternatives) && course.alternatives.length > 0;
 
     let statusColor = "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800";
     let statusIcon = null;
@@ -265,7 +337,7 @@ function CourseCard({ course, isCompleted, isAvailable, isSelected, isHighlighte
         statusText = "Locked - Prerequisites needed";
     }
 
-    const highlightClass = isHighlighted ? "course-card-flash" : "";
+    const highlightClass = isHighlighted ? "course-card-flash ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-900 z-10" : "";
 
     return (
         <div
@@ -301,6 +373,37 @@ function CourseCard({ course, isCompleted, isAvailable, isSelected, isHighlighte
                                     {prereq}
                                 </button>
                             ))}
+                        </div>
+                    )}
+
+                    {hasAlternatives && (
+                        <div className="mt-2 space-y-1">
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Includes
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {course.alternatives.slice(0, 4).map((alternative) => {
+                                    const isHighlightedAlternative = normalizeSearchText(alternative) === normalizedSearchQuery;
+
+                                    return (
+                                    <span
+                                            key={`${course.code}-alt-${alternative}`}
+                                            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                                                isHighlightedAlternative
+                                                    ? "border-blue-500 bg-blue-100 text-blue-800 dark:border-blue-400 dark:bg-blue-900/40 dark:text-blue-200"
+                                                    : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                            }`}
+                                        >
+                                            {alternative}
+                                        </span>
+                                    );
+                                })}
+                                {course.alternatives.length > 4 && (
+                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                                        +{course.alternatives.length - 4} more
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -340,6 +443,7 @@ function SectionCourses({
     onCourseToggle,
     onCourseUntoggle,
     onPrereqClick,
+    searchQuery,
 }) {
     const [selectedCourse, setSelectedCourse] = useState(null);
 
@@ -438,6 +542,7 @@ function SectionCourses({
                                             onClick={handleCourseClick}
                                             onPrereqClick={onPrereqClick}
                                             courseDetails={courseMap[course.code]}
+                                            searchQuery={searchQuery}
                                         />
                                     );
                                 })}
@@ -460,6 +565,7 @@ function SectionCourses({
                                 onClick={handleCourseClick}
                                 onPrereqClick={onPrereqClick}
                                 courseDetails={courseMap[course.code]}
+                                searchQuery={searchQuery}
                             />
                         );
                     })}
@@ -476,6 +582,8 @@ export default function CourseProgressionPage() {
     const [completedCoursesByDept, setCompletedCoursesByDept] = useState({});
     const [undoStackByDept, setUndoStackByDept] = useState({});
     const [highlightedCourseCode, setHighlightedCourseCode] = useState(null);
+    const [courseSearchDraft, setCourseSearchDraft] = useState("");
+    const [courseSearchQuery, setCourseSearchQuery] = useState("");
     const [showProgressPanel, setShowProgressPanel] = useState(false);
 
     const activeCurriculum = getCurriculumForDepartment(selectedDept);
@@ -597,20 +705,30 @@ export default function CourseProgressionPage() {
     const allSectionCourses = useMemo(
         () =>
             activeCurriculum.flatMap((section) => {
-                const courses = section.courses
-                    ? section.courses
-                    : section.streams
-                      ? section.streams.flatMap((stream) => stream.courses)
-                      : [];
+                if (section.courses) {
+                    return section.courses.map((course) => ({
+                        ...course,
+                        sectionName: section.section,
+                        streamName: null,
+                    }));
+                }
 
-                return courses.map((course) => ({
-                    code: course.code,
-                    name: course.name,
-                    sectionName: section.section,
-                }));
+                if (section.streams) {
+                    return section.streams.flatMap((stream) =>
+                        stream.courses.map((course) => ({
+                            ...course,
+                            sectionName: section.section,
+                            streamName: stream.name,
+                        })),
+                    );
+                }
+
+                return [];
             }),
         [activeCurriculum],
     );
+
+    const courseSearchMatches = useMemo(() => findCourseMatches(allSectionCourses, courseSearchQuery), [allSectionCourses, courseSearchQuery]);
 
     const availableCourses = useMemo(() => {
         const completedSet = new Set(completedCourses);
@@ -647,22 +765,57 @@ export default function CourseProgressionPage() {
         }
     }, []);
 
+    const handleCourseSearchSubmit = useCallback(
+        (event) => {
+            event.preventDefault();
+
+            const query = courseSearchDraft.trim();
+            setCourseSearchQuery(query);
+
+            if (!query) {
+                setHighlightedCourseCode(null);
+                return;
+            }
+
+            const matches = findCourseMatches(allSectionCourses, query);
+            const target = matches[0];
+
+            if (!target) return;
+
+            setHighlightedCourseCode(target.course.code);
+
+            const cardEl = document.getElementById(getCourseCardId(target.course.code));
+            if (cardEl) {
+                cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        },
+        [allSectionCourses, courseSearchDraft],
+    );
+
     useEffect(() => {
-        if (!highlightedCourseCode) return;
+        if (!highlightedCourseCode || courseSearchQuery.trim()) return;
 
         const timer = setTimeout(() => {
             setHighlightedCourseCode(null);
         }, 2600);
 
         return () => clearTimeout(timer);
-    }, [highlightedCourseCode]);
+    }, [highlightedCourseCode, courseSearchQuery]);
+
+    useEffect(() => {
+        setCourseSearchDraft("");
+        setCourseSearchQuery("");
+        setHighlightedCourseCode(null);
+    }, [selectedDept]);
 
     // Calculate total completed credits
     const totalCompletedCredits = getCompletedCoursesForCurriculum(activeCurriculum, completedCourses);
 
-    const totalCredits = selectedDept === "CS" ? getCsTotalCredits(activeCurriculum) : getCseTotalCredits(activeCurriculum);
+    const totalCredits = selectedDept ? getTotalCreditsForDepartment(selectedDept, activeCurriculum) : 0;
     const progressPercent = totalCredits > 0 ? Math.min(100, Math.round((totalCompletedCredits / totalCredits) * 100)) : 0;
     const coursesLeft = Math.max(0, allSectionCourses.length - completedCourses.length);
+    const canUndo = undoStack.length > 0;
+    const canReset = completedCourses.length > 0;
 
     //! MARK: Bottom Panel
     return (
@@ -773,6 +926,76 @@ export default function CourseProgressionPage() {
                         </div>
                     ) : (
                         <div className="space-y-10">
+                            <div className="rounded-xl border border-blue-200/70 bg-white/80 p-4 shadow-sm dark:border-blue-900/50 dark:bg-gray-950/50">
+                                <form onSubmit={handleCourseSearchSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                    <div className="relative flex-1">
+                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="search"
+                                            value={courseSearchDraft}
+                                            onChange={(event) => setCourseSearchDraft(event.target.value)}
+                                            placeholder="Find a course, stream, or code like HUM101"
+                                            className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">
+                                            Locate
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setCourseSearchDraft("");
+                                                setCourseSearchQuery("");
+                                                setHighlightedCourseCode(null);
+                                            }}
+                                        >
+                                            Clear
+                                        </Button>
+                                    </div>
+                                </form>
+
+                                <div className="mt-3 space-y-2">
+                                    {courseSearchQuery.trim() ? (
+                                        courseSearchMatches.length > 0 ? (
+                                            <>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    Showing {courseSearchMatches.length} match{courseSearchMatches.length > 1 ? "es" : ""}
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {courseSearchMatches.slice(0, 6).map((match) => (
+                                                        <button
+                                                            key={`${match.course.sectionName}-${match.course.streamName ?? "course"}-${match.course.code}`}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setHighlightedCourseCode(match.course.code);
+                                                                const cardEl = document.getElementById(getCourseCardId(match.course.code));
+                                                                if (cardEl) {
+                                                                    cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                                                                }
+                                                            }}
+                                                            className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-800"
+                                                        >
+                                                            <span className="font-semibold">{match.course.code}</span>
+                                                            <span className="ml-2 text-gray-500 dark:text-gray-400">{match.locationLabel}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-xs text-amber-700 dark:text-amber-400">
+                                                No match found. Try a course code, title, or stream name.
+                                            </p>
+                                        )
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Search by code, title, or a hidden option like HUM101 to jump to the stream that contains it.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
                             {activeSections.map((section) => (
                                 <div key={section.name} id={getSectionAnchorId(section.name)} className="space-y-4 scroll-mt-6">
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-blue-200 dark:border-blue-800 pb-3">
@@ -807,6 +1030,7 @@ export default function CourseProgressionPage() {
                                         onCourseToggle={handleCourseToggle}
                                         onCourseUntoggle={handleCourseUntoggle}
                                         onPrereqClick={handlePrereqJump}
+                                        searchQuery={courseSearchQuery}
                                     />
                                 </div>
                             ))}
@@ -820,13 +1044,12 @@ export default function CourseProgressionPage() {
                     {!showProgressPanel ? (
                         <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2">
                             <div className="flex items-center gap-2">
-                                {supportedDepartments.has(selectedDept) && (
+                                {supportedDepartments.has(selectedDept) && canUndo && (
                                     <button
                                         type="button"
                                         onClick={handleUndo}
-                                        disabled={undoStack.length === 0}
                                         className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 dark:border-slate-700 dark:bg-gray-900/90 dark:text-slate-200 dark:hover:bg-gray-800"
-                                        title={undoStack.length === 0 ? "Nothing to undo" : "Undo last change"}
+                                        title="Undo last change"
                                     >
                                         <Undo2 className="h-3.5 w-3.5" />
                                         Undo({undoStack.length})
@@ -844,7 +1067,7 @@ export default function CourseProgressionPage() {
                                     {selectedDept} credits {totalCompletedCredits} / {totalCredits}
                                 </button>
 
-                                {supportedDepartments.has(selectedDept) && (
+                                {supportedDepartments.has(selectedDept) && canReset && (
                                     <button
                                         type="button"
                                         onClick={handleReset}
@@ -863,12 +1086,11 @@ export default function CourseProgressionPage() {
                                     <div className="min-w-0 flex-1 space-y-3">
                                         <div className="flex items-center justify-between gap-2">
                                             <div>
-                                                {supportedDepartments.has(selectedDept) && (
+                                                {supportedDepartments.has(selectedDept) && canUndo && (
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={handleUndo}
-                                                        disabled={undoStack.length === 0}
                                                         className="h-8 border-slate-300 px-3 text-[13px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
                                                     >
                                                         <Undo2 className="mr-1.5 h-3.5 w-3.5" />
@@ -878,7 +1100,7 @@ export default function CourseProgressionPage() {
                                             </div>
 
                                             <div className="flex items-center gap-2">
-                                                {supportedDepartments.has(selectedDept) && (
+                                                {supportedDepartments.has(selectedDept) && canReset && (
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
