@@ -22,5 +22,12 @@ export const ideaOwners = [
         githubLink: "https://github.com/badhon495",
         description: "A modern, client-side web application built to help BRAC University students take control of their academic journey. Built with JavaScript, pdf.js, HTML, and CSS, it runs entirely in the browser.",
         originalProjectLink: "https://github.com/badhon495/should-i-retake" // Optional   
+    },
+    {
+        featureTitle: "Current PrePreReg UI Idea",
+        githubLink: "https://github.com/bokaif",
+        description: "Kaif saw the problem of juggling between a seat status website and a routine builder and prototyped a better UI.",
+        originalProjectLink: "https://bracu.web.app/" // Optional   
+
     }
 ];
