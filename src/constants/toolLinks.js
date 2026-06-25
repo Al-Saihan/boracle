@@ -6,6 +6,7 @@ const toolLinks = [
     { title: 'Merge Routines', href: '/merge-routines' },
     { title: 'Course Directory', href: '/course-materials' },
     { title: 'Gradesheet Analyzer', href: '/gradesheet' },
+    { title: 'Chicken Coop', href: '/chickencoop' },
 ];
 
 export default toolLinks;
