@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Building2, Monitor, Loader2, SearchX, Cpu, Zap, Atom, Microscope, Landmark } from 'lucide-react';
+import { Building2, Monitor, Loader2, SearchX, Cpu, Zap, Atom, Microscope, Landmark } from 'lucide-react';
 import ClockTimePicker from '@/components/chickencoop/ClockTimePicker';
+import DayPicker from '@/components/chickencoop/DayPicker';
 
 const CONNECT_CDN_URL = 'https://usis-cdn.eniamza.com/connect.json';
 const CACHE_KEY = 'boracle_labfinder_cache';
@@ -114,14 +115,11 @@ function isTimeInSlot(selectedMinutes, startTime, endTime) {
 }
 
 /**
- * Get today's date in YYYY-MM-DD format.
+ * Get today's day of the week.
  */
-function getTodayStr() {
+function getTodayDayName() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return JS_DAY_TO_NAME[now.getDay()] || 'SUNDAY';
 }
 
 /**
@@ -138,7 +136,7 @@ export default function ChickenCoopContent() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(getTodayStr);
+  const [selectedDay, setSelectedDay] = useState(getTodayDayName);
   const [selectedTime, setSelectedTime] = useState(getNowTimeStr);
   const [selectedDepts, setSelectedDepts] = useState(new Set());
 
@@ -233,13 +231,6 @@ export default function ChickenCoopContent() {
     return map;
   }, [courses]);
 
-  // Derive the selected day name from the date string
-  const selectedDayName = useMemo(() => {
-    if (!selectedDate) return '';
-    const dateObj = new Date(selectedDate + 'T00:00:00');
-    return JS_DAY_TO_NAME[dateObj.getDay()] || '';
-  }, [selectedDate]);
-
   // Filter: find empty lab rooms
   const results = useMemo(() => {
     const selectedMinutes = timeToMinutes(selectedTime + ':00');
@@ -254,14 +245,14 @@ export default function ChickenCoopContent() {
 
       // Check if room is occupied at selected day + time
       const isOccupied = info.schedules.some(s =>
-        s.day === selectedDayName && isTimeInSlot(selectedMinutes, s.startTime, s.endTime)
+        s.day === selectedDay && isTimeInSlot(selectedMinutes, s.startTime, s.endTime)
       );
 
       // Find the next upcoming class today for context
       let nextClass = null;
       if (!isOccupied) {
         const todaySchedules = info.schedules
-          .filter(s => s.day === selectedDayName && timeToMinutes(s.startTime) > selectedMinutes)
+          .filter(s => s.day === selectedDay && timeToMinutes(s.startTime) > selectedMinutes)
           .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
         if (todaySchedules.length > 0) {
           nextClass = todaySchedules[0];
@@ -272,7 +263,7 @@ export default function ChickenCoopContent() {
       let occupyingClass = null;
       if (isOccupied) {
         occupyingClass = info.schedules.find(s =>
-          s.day === selectedDayName && isTimeInSlot(selectedMinutes, s.startTime, s.endTime)
+          s.day === selectedDay && isTimeInSlot(selectedMinutes, s.startTime, s.endTime)
         );
       }
 
@@ -292,7 +283,7 @@ export default function ChickenCoopContent() {
     });
 
     return allRooms;
-  }, [labRoomMap, selectedDayName, selectedTime, selectedDepts]);
+  }, [labRoomMap, selectedDay, selectedTime, selectedDepts]);
 
   const availableCount = results.filter(r => !r.isOccupied).length;
   const occupiedCount = results.filter(r => r.isOccupied).length;
@@ -338,15 +329,12 @@ export default function ChickenCoopContent() {
           <div className="grid grid-cols-2 gap-0">
             <div className="p-4 border-r border-gray-200 dark:border-gray-800">
               <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                <Calendar className="w-3.5 h-3.5" />
-                Date
+                Day
               </label>
-              <input
-                type="date"
-                id="chickencoop-date-picker"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all text-sm [color-scheme:dark]"
+              <DayPicker
+                id="chickencoop-day-picker"
+                value={selectedDay}
+                onChange={setSelectedDay}
               />
             </div>
             <div className="p-4">
@@ -415,7 +403,7 @@ export default function ChickenCoopContent() {
               </span>
             </div>
             <span className="text-xs text-gray-400 dark:text-gray-500">
-              {selectedDayName.charAt(0) + selectedDayName.slice(1).toLowerCase()} · {formatTimeDisplay(selectedTime)}
+              {selectedDay.charAt(0) + selectedDay.slice(1).toLowerCase()} · {formatTimeDisplay(selectedTime)}
             </span>
           </div>
         )}
