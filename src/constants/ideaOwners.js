@@ -29,5 +29,12 @@ export const ideaOwners = [
         description: "Kaif saw the problem of juggling between a seat status website and a routine builder and prototyped a better UI.",
         originalProjectLink: "https://bracu.web.app/" // Optional   
 
+    },
+    {
+        featureTitle: "Chicken Coop",
+        githubLink: "https://github.com/0xriyadh/chicken-coop",
+        description: "TThe OG Free Labs Finder that solved the insomnia of thousands of students.",
+        originalProjectLink: "https://chicken-coop.vercel.app/" // Optional   
+
     }
 ];
