@@ -41,6 +41,14 @@ const featureList = [
         href: "/gradesheet",
         dashboardHref: "/dashboard/gradesheet"
     },
+    {
+        index: 6,
+        title: "Chicken Coop",
+        description: "Discover available lab rooms at any time, no more wandering around campus",
+        footer: "🟢 Live",
+        href: "/chickencoop",
+        dashboardHref: "/dashboard/chickencoop"
+    }
 ]
 
 export default featureList;
