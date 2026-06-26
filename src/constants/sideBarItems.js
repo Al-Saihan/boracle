@@ -1,4 +1,4 @@
-import { Home, Sigma, Star, ChevronsLeftRightEllipsis, Hammer, Cable, BookOpen, Users, ArrowRightLeft, FileText, LineChart } from "lucide-react"
+import { Home, Sigma, Star, ChevronsLeftRightEllipsis, Hammer, Cable, BookOpen, Users, ArrowRightLeft, FileText, LineChart, Drumstick } from "lucide-react"
 
 const sidebarGroups = [
     {
@@ -49,6 +49,13 @@ const sidebarGroups = [
                 href: '/dashboard/gradesheet',
                 description: 'Upload your grade sheet PDF to analyze your CGPA and plan retakes',
                 icon: LineChart,
+                enabled: true
+            },
+            {
+                title: 'Chicken Coop',
+                href: '/dashboard/chickencoop',
+                description: 'Discover available lab rooms at any time — no more wandering around campus',
+                icon: Drumstick,
                 enabled: true
             }
         ]
