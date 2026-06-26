@@ -51,7 +51,7 @@ const CourseMaterialsPage = () => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
             setDebouncedQuery(searchQuery);
-        }, 300);
+        }, 800);
         return () => clearTimeout(debounceRef.current);
     }, [searchQuery]);
 
