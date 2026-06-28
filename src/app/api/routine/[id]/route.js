@@ -61,6 +61,10 @@ export async function GET(request, { params }) {
         semester: routine.semester,
         ownerName: ownerName,
       }
+    }, {
+      headers: {
+        'Cache-Control': 'public, max-age=172800, s-maxage=259200, stale-while-revalidate=3600',
+      },
     });
 
   } catch (error) {
