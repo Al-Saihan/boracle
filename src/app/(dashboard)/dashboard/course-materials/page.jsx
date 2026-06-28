@@ -39,6 +39,7 @@ const CourseMaterialsPage = () => {
     const observerRef = useRef(null);
     const loadMoreRef = useRef(null);
     const isFetchingRef = useRef(false);
+    const abortControllerRef = useRef(null);
 
     const isPublic = sessionStatus === 'unauthenticated';
 
@@ -57,7 +58,13 @@ const CourseMaterialsPage = () => {
 
     const fetchMaterials = useCallback(async (isLoadMore = false) => {
         if (isLoadMore && (!hasMore || isFetchingRef.current)) return;
-        if (!isLoadMore && isFetchingRef.current) return;
+
+        // Abort any in-flight request before starting a new one
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
 
         try {
             isFetchingRef.current = true;
@@ -77,7 +84,7 @@ const CourseMaterialsPage = () => {
                 params.set('type', typeFilters.join(','));
             }
 
-            const res = await fetch(`/api/materials?${params.toString()}`);
+            const res = await fetch(`/api/materials?${params.toString()}`, { signal: controller.signal });
             if (res.ok) {
                 const data = await res.json();
                 if (isLoadMore) {
@@ -93,6 +100,7 @@ const CourseMaterialsPage = () => {
                 setHasMore(!!data.nextCursor);
             }
         } catch (e) {
+            if (e.name === 'AbortError') return; // Silently ignore aborted requests
             toast.error('Failed to load materials');
         } finally {
             isFetchingRef.current = false;
