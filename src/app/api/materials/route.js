@@ -118,7 +118,12 @@ export async function GET(req) {
         return NextResponse.json({
             items: response,
             nextCursor,
-        }, { status: 200 });
+        }, {
+            status: 200,
+            headers: {
+                'Cache-Control': 'private, max-age=3600, stale-while-revalidate=300',
+            },
+        });
     } catch (error) {
         console.error('Materials GET error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

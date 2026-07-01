@@ -61,6 +61,12 @@ export async function GET(request, { params }) {
         semester: routine.semester,
         ownerName: ownerName,
       }
+    }, {
+      headers: {
+        'Cache-Control': 'public, max-age=172800, stale-while-revalidate=3600',
+        'CDN-Cache-Control': 'public, max-age=259200, stale-while-revalidate=3600',
+        'Vercel-CDN-Cache-Control': 'public, max-age=259200, stale-while-revalidate=3600',
+      },
     });
 
   } catch (error) {

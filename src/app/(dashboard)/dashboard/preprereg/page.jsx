@@ -105,6 +105,15 @@ const PreRegistrationPage = () => {
     return selectedCourses.reduce((sum, course) => sum + (course.courseCredit || 0), 0);
   }, [selectedCourses]);
 
+  // Build a live seat lookup from Mercure-updated courses so pills stay current
+  const liveSeatMap = useMemo(() => {
+    const map = {};
+    courses.forEach(c => {
+      map[c.sectionId] = { consumedSeat: c.consumedSeat, capacity: c.capacity };
+    });
+    return map;
+  }, [courses]);
+
   // Fetch backup index for semester dropdown
   useEffect(() => {
     const loadBackupIndex = async () => {
@@ -250,6 +259,22 @@ const PreRegistrationPage = () => {
         }
 
         return prevCourses;
+      });
+
+      // Sync seat updates to selectedCourses (localStorage) so data persists across reloads
+      setSelectedCourses(prev => {
+        let changed = false;
+        const next = prev.map(course => {
+          if (currentUpdates[course.sectionId] !== undefined) {
+            const newConsumedSeat = currentUpdates[course.sectionId];
+            if (course.consumedSeat !== newConsumedSeat) {
+              changed = true;
+              return { ...course, consumedSeat: newConsumedSeat };
+            }
+          }
+          return course;
+        });
+        return changed ? next : prev;
       });
 
     }, 2000);
@@ -650,11 +675,10 @@ const PreRegistrationPage = () => {
             <div className="relative" ref={semesterDropdownRef}>
               <button
                 onClick={() => setSemesterDropdownOpen(!semesterDropdownOpen)}
-                className={`h-[50px] px-4 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium whitespace-nowrap border ${
-                  selectedSemester === 'current'
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-                }`}
+                className={`h-[50px] px-4 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium whitespace-nowrap border ${selectedSemester === 'current'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                  }`}
               >
                 <Calendar className="w-4 h-4" />
                 <span className="hidden sm:inline">
@@ -673,11 +697,10 @@ const PreRegistrationPage = () => {
                       setSelectedSemester('current');
                       setSemesterDropdownOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
-                      selectedSemester === 'current'
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                    }`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${selectedSemester === 'current'
+                      ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
                   >
                     <div className={`w-2 h-2 rounded-full ${selectedSemester === 'current' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
                     <div className="flex flex-col items-start">
@@ -699,11 +722,10 @@ const PreRegistrationPage = () => {
                             setSelectedSemester(backup.semester);
                             setSemesterDropdownOpen(false);
                           }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
-                            selectedSemester === backup.semester
-                              ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                          }`}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${selectedSemester === backup.semester
+                            ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                            }`}
                         >
                           <div className={`w-2 h-2 rounded-full ${selectedSemester === backup.semester ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
                           <div className="flex flex-col items-start">
@@ -863,39 +885,63 @@ const PreRegistrationPage = () => {
                 </button>
                 <div className={`overflow-hidden transition-all duration-200 ease-in-out ${showSelectedDrawer ? 'max-h-60 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
                   <div className="flex flex-wrap gap-2">
-                    {selectedCourses.map(course => (
-                      <span
-                        key={course.sectionId}
-                        className="px-3 py-1.5 bg-blue-100 dark:bg-blue-500/20 border border-blue-300 dark:border-blue-500/50 rounded-full text-sm flex items-center gap-2 text-blue-700 dark:text-blue-300"
-                      >
-                        {course.courseCode}-[{course.sectionName}]
-                        <button
-                          onClick={() => addToRoutine(course)}
-                          className="hover:text-blue-500 dark:hover:text-blue-200 transition-colors"
+                    {selectedCourses.map(course => {
+                      const live = liveSeatMap[course.sectionId];
+                      const consumed = live ? live.consumedSeat : course.consumedSeat;
+                      const capacity = live ? live.capacity : course.capacity;
+                      const isFilled = consumed != null && capacity != null && consumed >= capacity;
+                      return (
+                        <span
+                          key={course.sectionId}
+                          className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 border transition-colors ${isFilled
+                            ? 'bg-red-100 dark:bg-red-500/20 border-red-300 dark:border-red-500/50 text-red-700 dark:text-red-300'
+                            : 'bg-blue-100 dark:bg-blue-500/20 border-blue-300 dark:border-blue-500/50 text-blue-700 dark:text-blue-300'
+                            }`}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
+                          {course.courseCode}-[{course.sectionName}]
+                          <span className={`text-xs font-medium ${isFilled ? 'text-red-500 dark:text-red-400' : 'text-blue-500 dark:text-blue-400'}`}>
+                            {consumed ?? '?'}/{capacity ?? '?'}
+                          </span>
+                          <button
+                            onClick={() => addToRoutine(course)}
+                            className={`transition-colors ${isFilled ? 'hover:text-red-500 dark:hover:text-red-200' : 'hover:text-blue-500 dark:hover:text-blue-200'}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             ) : (
               <div className="flex flex-wrap gap-2 mt-3">
-                {selectedCourses.map(course => (
-                  <span
-                    key={course.sectionId}
-                    className="px-3 py-1.5 bg-blue-100 dark:bg-blue-500/20 border border-blue-300 dark:border-blue-500/50 rounded-full text-sm flex items-center gap-2 text-blue-700 dark:text-blue-300"
-                  >
-                    {course.courseCode}-[{course.sectionName}]-{course.faculties || 'TBA'}
-                    <button
-                      onClick={() => addToRoutine(course)}
-                      className="hover:text-blue-500 dark:hover:text-blue-200 transition-colors"
+                {selectedCourses.map(course => {
+                  const live = liveSeatMap[course.sectionId];
+                  const consumed = live ? live.consumedSeat : course.consumedSeat;
+                  const capacity = live ? live.capacity : course.capacity;
+                  const isFilled = consumed != null && capacity != null && consumed >= capacity;
+                  return (
+                    <span
+                      key={course.sectionId}
+                      className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 border transition-colors ${isFilled
+                        ? 'bg-red-100 dark:bg-red-500/20 border-red-300 dark:border-red-500/50 text-red-700 dark:text-red-300'
+                        : 'bg-blue-100 dark:bg-blue-500/20 border-blue-300 dark:border-blue-500/50 text-blue-700 dark:text-blue-300'
+                        }`}
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
+                      {course.courseCode}-[{course.sectionName}]-{course.faculties || 'TBA'}
+                      <span className={`text-xs font-medium ${isFilled ? 'text-red-500 dark:text-red-400' : 'text-blue-500 dark:text-blue-400'}`}>
+                        {consumed ?? '?'}/{capacity ?? '?'}
+                      </span>
+                      <button
+                        onClick={() => addToRoutine(course)}
+                        className={`transition-colors ${isFilled ? 'hover:text-red-500 dark:hover:text-red-200' : 'hover:text-blue-500 dark:hover:text-blue-200'}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
               </div>
             )
           )}
@@ -1111,9 +1157,19 @@ const PreRegistrationPage = () => {
                       </td>
                       <td className="py-3 px-2 text-xs whitespace-pre-line text-gray-700 dark:text-gray-300">
                         {formatSchedule(course.sectionSchedule?.classSchedules)}
+                        {course.roomName && (
+                          <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 whitespace-pre-line">
+                            Room: {course.roomName.replace(/;/g, '\n')}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-xs whitespace-pre-line text-gray-700 dark:text-gray-300">
                         {course.labSchedules?.length > 0 ? formatSchedule(course.labSchedules) : 'N/A'}
+                        {course.labRoomName && (
+                          <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 whitespace-pre-line">
+                            Room: {course.labRoomName.replace(/;/g, '\n')}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-xs text-gray-700 dark:text-gray-300">
                         {course.sectionSchedule?.finalExamDetail || 'TBA'}

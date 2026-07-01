@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import RoutineView from '@/components/routine/RoutineView';
 import { fetchCourses } from '@/lib/api/courseFetcher';
+import { getStaleCache, setCache } from '@/lib/idb';
 import { copyToClipboard } from '@/lib/utils';
 import { exportRoutineToPNG } from '@/components/routine/ExportRoutinePNG';
 import { toast } from 'sonner';
@@ -50,16 +51,27 @@ const SharedRoutinePage = () => {
 
     const fetchRoutine = async () => {
         try {
-            setLoading(true);
+            const CACHE_KEY = `routine_${id}`;
+            const staleData = await getStaleCache(CACHE_KEY);
+            let hasStaleData = false;
+            
+            if (staleData) {
+                setRoutine(staleData.routine);
+                setCourses(staleData.courses);
+                setLoading(false);
+                hasStaleData = true;
+            } else {
+                setLoading(true);
+            }
+            
             setError(null);
 
             const response = await fetch(`/api/routine/${id}`);
 
             if (!response.ok) {
-                if (response.status === 404) {
-                    setError('not_found');
-                } else {
-                    setError('fetch_failed');
+                if (!hasStaleData) {
+                    if (response.status === 404) setError('not_found');
+                    else setError('fetch_failed');
                 }
                 return;
             }
@@ -67,12 +79,10 @@ const SharedRoutinePage = () => {
             const data = await response.json();
 
             if (!data.success) {
-                setError('fetch_failed');
+                if (!hasStaleData) setError('fetch_failed');
                 return;
             }
-
-            setRoutine(data.routine);
-
+            
             // Decode routineStr and fetch course data
             const sectionIds = JSON.parse(atob(data.routine.routineStr));
 
@@ -87,10 +97,17 @@ const SharedRoutinePage = () => {
                     imgUrl: getFacultyDetails(course.faculties).imgUrl,
                 }));
 
+            setRoutine(data.routine);
             setCourses(matchedCourses);
+            
+            // Save to IDB Cache (30 days TTL)
+            await setCache(CACHE_KEY, { routine: data.routine, courses: matchedCourses }, 30 * 24 * 60 * 60 * 1000);
         } catch (err) {
             console.error('Error fetching shared routine:', err);
-            setError('fetch_failed');
+            setLoading((prevLoading) => {
+                if (prevLoading) setError('fetch_failed');
+                return false;
+            });
         } finally {
             setLoading(false);
         }

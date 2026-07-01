@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { exportRoutineToPNG } from '@/components/routine/ExportRoutinePNG';
 import { getRoutineTimings, REGULAR_TIMINGS } from '@/constants/routineTimings';
 import { fetchCourses } from '@/lib/api/courseFetcher';
+import { getStaleCache, setCache } from '@/lib/idb';
 import ShareModal from '@/components/savedRoutine/ShareModal';
 import RoutineView from '@/components/routine/RoutineView';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -775,8 +776,18 @@ const SavedRoutinesPage = () => {
   // View routine details - fetch course data and show in modal
   const viewRoutine = async (routine) => {
     try {
-      setLoadingRoutine(true);
-      setViewingRoutine(routine);
+      const CACHE_KEY = `view_routine_${routine.id}`;
+      const staleData = await getStaleCache(CACHE_KEY);
+      let hasStaleData = false;
+      
+      if (staleData) {
+        setRoutineCourses(staleData);
+        setViewingRoutine(routine);
+        hasStaleData = true;
+      } else {
+        setLoadingRoutine(true);
+        setViewingRoutine(routine);
+      }
 
       // Decode the routine string to get section IDs
       const sectionIds = JSON.parse(atob(routine.routineStr));
@@ -789,14 +800,19 @@ const SavedRoutinesPage = () => {
         sectionIds.includes(course.sectionId)
       );
 
-      setRoutineCourses(matchedCourses.map(course => ({
+      const enrichedCourses = matchedCourses.map(course => ({
         ...course,
         employeeName: getFacultyDetails(course.faculties).facultyName,
         employeeEmail: getFacultyDetails(course.faculties).facultyEmail,
         imgUrl: getFacultyDetails(course.faculties).imgUrl,
-      })));
+      }));
 
-      if (matchedCourses.length === 0) {
+      setRoutineCourses(enrichedCourses);
+      
+      // Save to cache for 30 days
+      await setCache(CACHE_KEY, enrichedCourses, 30 * 24 * 60 * 60 * 1000);
+
+      if (matchedCourses.length === 0 && !hasStaleData) {
         toast.error('No matching courses found for this routine');
       }
     } catch (err) {
