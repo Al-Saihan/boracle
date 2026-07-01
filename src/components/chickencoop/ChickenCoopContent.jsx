@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Building2, Monitor, Loader2, SearchX, Cpu, Zap, Atom, Microscope, Landmark } from 'lucide-react';
 import ClockTimePicker from '@/components/chickencoop/ClockTimePicker';
 import DayPicker from '@/components/chickencoop/DayPicker';
+import { getCache, setCache } from '@/lib/idb';
 
 const CONNECT_CDN_URL = 'https://usis-cdn.eniamza.com/connect.json';
 const CACHE_KEY = 'boracle_labfinder_cache';
@@ -146,19 +147,12 @@ export default function ChickenCoopContent() {
       setLoading(true);
       setError(null);
 
-      // Check localStorage cache
-      try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL && Array.isArray(data) && data.length > 0) {
-            setCourses(data);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (e) {
-        // Cache read failed, proceed with fetch
+      // Check IDB cache
+      const cached = await getCache(CACHE_KEY);
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setCourses(cached);
+        setLoading(false);
+        return;
       }
 
       try {
@@ -168,12 +162,8 @@ export default function ChickenCoopContent() {
         const arr = Array.isArray(data) ? data : (data.sections || []);
         setCourses(arr);
 
-        // Save to cache
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ data: arr, timestamp: Date.now() }));
-        } catch (e) {
-          // localStorage full — silently ignore
-        }
+        // Save to IDB cache
+        await setCache(CACHE_KEY, arr, CACHE_TTL);
       } catch (err) {
         setError('Failed to load course data. Please try again later.');
         console.error('ChickenCoop fetch error:', err);
